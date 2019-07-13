@@ -1,9 +1,17 @@
 module.exports = Swarmhead
 
+const STATE = {
+  LISTEN : 0,
+  OK_DELAY : 1,
+  JOB_WAIT : 2,
+  WORKING : 3
+}
+
 function Swarmhead (opts) {
   let cabal = opts.cabal
   let drive = opts.drive
   let db = opts.db
+  let state = STATE.LISTEN
   let nick = undefined
   let key = undefined
 
@@ -44,13 +52,10 @@ function Swarmhead (opts) {
     return true
   }
 
-  function publish (msg) {
+  function publish (text) {
     cabal.publish({
       type: 'chat/text',
-      content: {
-        channel: 'bots',
-        text: msg
-      }
+      content: { channel: 'bots', text }
     })
   }
 
@@ -58,6 +63,7 @@ function Swarmhead (opts) {
     db.get('lastmsg', (err, msg) => {
       if (err) return cb(err)
       publish('!OK ' + msg.key + ':' + msg.seq)
+      state = STATE.JOB_WAIT
     })
   }
 
@@ -72,20 +78,16 @@ function Swarmhead (opts) {
         if (/^!uc\b/.test(txt)) {
           publish(txt.replace(/^!uc\s*/,'').toUpperCase())
         } else if (/^!rollcall\b/.test(txt)) {
+          state = STATE.OK_DELAY
           setTimeout(ok.bind(null, rej), Math.floor(Math.random() * 2250))
+        } else if (/^!job\b/.test(txt)) {
         }
       })
     })
   }
 
   function rollcall() {
-    cabal.publish({
-      type: 'chat/text',
-      content: {
-        channel: 'bots',
-        text: '!rollcall'
-      }
-    })
+    return publish('!rollcall')
   }
 
   function jobs() {
