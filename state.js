@@ -39,6 +39,30 @@ function swarmstate(id, inbox) {
     return true
   }
 
+  function followPtr(ptr, bots, cb) {
+    let val = pointers[ptr]
+    if (val === undefined) {
+      cb('message ' + ptr + ' not found.')
+    } else if (val === 0) {
+      cb(null)
+    } else {
+      let bot = ptr.split(':')[0]
+      bots.add(bot)
+      followPtrs(0, val.split(','), bots, cb)
+    }
+  }
+
+  function followPtrs(idx, ptrs, bots, cb) {
+    if (idx >= ptrs.length) { return cb(null, bots) }
+    let ptr = ptrs[idx]
+    let bot = ptr.split(':')[0]
+
+    followPtr(ptr, bots, (err) => {
+      if (err) cb(err)
+      else followPtrs(idx + 1, ptrs, bots, cb)
+    })
+  }
+
   function next(idx, cb) {
     if (idx >= inbox.length) { return cb(null, state) }
 
@@ -46,7 +70,9 @@ function swarmstate(id, inbox) {
     console.log(idx, msg)
     let text = msg.value.content.text
     if (/^!rollcall\b/.test(text)) {
-      state = ACK_ROLLCALL
+      if (state === WAIT_ROLLCALL) {
+        state = ACK_ROLLCALL
+      }
       let mid = msg.key + ':' + msg.seq
       pointers[mid] = 0
 
@@ -56,7 +82,7 @@ function swarmstate(id, inbox) {
         else next(idx + 1, cb)
       })
     } else if (/^!ok\b/.test(text)) {
-      if (id === msg.key) {
+      if (state === ACK_ROLLCALL && id === msg.key) {
         state = WAIT_JOB
       }
       let mid = msg.key + ':' + msg.seq
@@ -71,15 +97,16 @@ function swarmstate(id, inbox) {
         if (err) cb(err)
         else next(idx + 1, cb)
       })
-    } else if (/^!job\b/.test(text)) {
+    } else if (state === WAIT_JOB && /^!job\b/.test(text)) {
       let parts = text.split(' ')
       if (parts.length != 3) return next(idx + 1, cb)
       let ptrs = parts[1].split(',')
 
-      followPtrs(0, ptrs, [], (err, bots) => {
+      followPtrs(0, ptrs, new Set(), (err, bots) => {
         if (err) {
-          console.error('skipping job', parts[2], 'because error', err)
-        } else if (bots.indexOf(id) >= 0) {
+          state = WAIT_ROLLCALL
+          console.error('unable to start job', parts[2], 'because error:', err)
+        } else if (bots.has(id) >= 0) {
           state = DO_JOB
           console.log('do job w/', bots)
         } else {
@@ -88,41 +115,19 @@ function swarmstate(id, inbox) {
         next(idx + 1, cb)
       })
     } else if (/^!done\b/.test(text)) {
-      if (id === msg.key) {
+      if (state === DO_JOB && id === msg.key) {
         state = WAIT_ROLLCALL
       }
+      next(idx + 1, cb)
     } else {
       next(idx + 1, cb)
     }
   }
 
-  function followPtr(ptr, bots, cb) {
-    let val = pointers[ptr]
-    if (val === undefined) {
-      cb(new Error('message ' + ptr + ' not found.'))
-    } else if (val === 0) {
-      cb(null)
-    } else {
-      followPtrs(0, val.split(','), bots, cb)
-    }
-  }
-
-  function followPtrs(idx, ptrs, bots, cb) {
-    if (idx >= ptrs.length) { return cb(null, bots) }
-    let ptr = ptrs[idx]
-    let bot = ptr.split(':')[0]
-    bots.push(bot)
-
-    followPtr(ptr, bots, (err) => {
-      if (err) cb(err)
-      else followPtrs(idx + 1, ptrs, bots, cb)
-    })
-  }
-
   return { next }
 }
 
-swarmstate(inboxC.key, inboxC.inbox)
+swarmstate(inboxE.key, inboxE.inbox)
   .next(0, (err, state) => {
     console.error('error', err)
     console.log(state)
