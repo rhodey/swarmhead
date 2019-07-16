@@ -21,7 +21,7 @@ let inboxC = { key : 'C', inbox : [inbox[2], inbox[3], inbox[5], inbox[6], inbox
 let inboxD = { key : 'D', inbox }
 let inboxE = { key : 'E', inbox : [inbox[0], inbox[1], inbox[2], inbox[3], inbox[4]] }
 
-function swarmstate(id, inbox) {
+function SwarmState(id, inbox) {
   const WAIT_ROLLCALL = 0
   const ACK_ROLLCALL = 1
   const WAIT_JOB = 2
@@ -127,7 +127,7 @@ function swarmstate(id, inbox) {
   return { next }
 }
 
-swarmstate(inboxE.key, inboxE.inbox)
+SwarmState(inboxE.key, inboxE.inbox)
   .next(0, (err, state) => {
     console.error('error', err)
     console.log(state)
