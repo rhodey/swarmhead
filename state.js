@@ -1,6 +1,6 @@
 const umkv = require('unordered-materialized-kv')
 let db = require('level')('./kv.db')
-var kv = umkv(db)
+let kv = umkv(db)
 
 let inbox = [
   { key : 'A', seq : 0, value : { content : { channel : 'bots', text : '!rollcall' }}},
@@ -30,6 +30,12 @@ function SwarmState(id, inbox) {
   let pointers = { }
   let archives = { }
   let state = WAIT_ROLLCALL
+
+  function clearDb(cb) {
+    db.createKeyStream()
+      .on('data', (key) => db.del(key))
+      .once('end', cb)
+  }
 
   function filter(msg) {
     if (!msg.value) return
@@ -76,10 +82,12 @@ function SwarmState(id, inbox) {
       let mid = msg.key + ':' + msg.seq
       pointers[mid] = 0
 
-      let doc = { id : mid, key : 'head', links : [] }
-      kv.batch([doc], (err) => {
-        if (err) cb(err)
-        else next(idx + 1, cb)
+      clearDb(() => {
+        let doc = { id : mid, key : 'head', links : [] }
+        kv.batch([doc], (err) => {
+          if (err) cb(err)
+          else next(idx + 1, cb)
+        })
       })
     } else if (/^!ok\b/.test(text)) {
       if (state === ACK_ROLLCALL && id === msg.key) {
@@ -131,4 +139,9 @@ SwarmState(inboxE.key, inboxE.inbox)
   .next(0, (err, state) => {
     console.error('error', err)
     console.log(state)
+
+    kv.get('head', (err, ids) => {
+      console.error('error', err)
+      console.log('head ->', ids)
+    })
   })
