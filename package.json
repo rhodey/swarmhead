@@ -9,6 +9,7 @@
     "mkdirp": "^0.5.1",
     "level": "^5.0.1",
     "hyperdrive": "^9.15.0",
+    "unordered-materialized-kv": "^1.2.1",
     "cabal-core": "^6.0.0"
   }
 }
