@@ -1,4 +1,4 @@
-const level = require('level-mem')
+const level = require('memdb')
 const umkv = require('unordered-materialized-kv')
 const BotState = require('./state.js').BotState
 const states = require('./state.js').states
@@ -33,18 +33,23 @@ next(0, inboxB, (err, state) => {
 
 function next(idx, inbox, cb) {
   if (idx >= inbox.length) return cb(null)
-  console.log(idx, inbox[idx])
   state.next(inbox[idx], (err, state) => {
     if (err) return cb(err)
-    console.log(state)
     switch (state) {
       case states.ACK_ROLL:
+        kv.get('head', (err, ids) => {
+          console.log('!ok n0nc3', ids, 'dat://abc123')
+          next(idx + 1, inbox, cb)
+        })
         break;
 
       case states.DO_JOB:
+        next(idx + 1, inbox, cb)
         break;
+
+      default:
+        next(idx + 1, inbox, cb)
     }
-    next(idx + 1, inbox, cb)
   })
 }
 
