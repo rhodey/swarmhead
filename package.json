@@ -8,6 +8,7 @@
     "minimist": "^1.2.0",
     "mkdirp": "^0.5.1",
     "level": "^5.0.1",
+    "level-mem": "^4.0.0",
     "hyperdrive": "^9.15.0",
     "unordered-materialized-kv": "^1.2.1",
     "cabal-core": "^6.0.0"
