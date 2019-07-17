@@ -13,6 +13,7 @@ function BotState(id, db, kv) {
   let nonces = { }
   let peers = { }
   let state = states.WAIT_ROLL
+  let job = undefined
 
   function clearDb(cb) {
     db.createKeyStream()
@@ -35,8 +36,8 @@ function BotState(id, db, kv) {
     } else if (val === 0) {
       cb(null)
     } else {
-      let bot = val.id
-      bots.add(bot)
+      let botid = val.id
+      bots.add(botid)
       followPointers(0, val.prev.split(','), bots, cb)
     }
   }
@@ -63,6 +64,8 @@ function BotState(id, db, kv) {
 
       let nonce = parts[1]
       nonces[nonce] = 0
+      job = undefined
+
       clearDb(() => {
         let doc = { id : nonce, key : 'head', links : [] }
         kv.batch([doc], (err) => {
@@ -93,24 +96,22 @@ function BotState(id, db, kv) {
       let parts = text.split(' ')
       if (parts.length != 3) cb(null, state)
       let prev = parts[1].split(',')
-      let job = parts[2]
 
       followPointers(0, prev, new Set(), (err, bots) => {
         if (err) {
           state = states.WAIT_ROLL
-          console.error('unable to start job', job, 'because error:', err)
-        } else if (bots.has(id) >= 0) {
+          return cb(err)
+        } else if (bots.has(id)) {
           state = states.DO_JOB
           let archives = Array.from(bots).map((key) => peers[key])
-          console.log('do job w/', bots, archives)
-        } else {
-          console.log('skip job w/', bots)
+          job = { uri : parts[2], peers : bots, archives }
         }
         cb(null, state)
       })
     } else if (/^!done\b/.test(text)) {
       if (state === states.DO_JOB && id === msg.key) {
         state = states.WAIT_ROLL
+        job = undefined
       }
       cb(null, state)
     } else {
@@ -118,5 +119,5 @@ function BotState(id, db, kv) {
     }
   }
 
-  return { next, state : () => state }
+  return { next, state : () => state, job : () => job }
 }

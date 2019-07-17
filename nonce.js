@@ -4,50 +4,95 @@ const umkv = require('unordered-materialized-kv')
 const BotState = require('./state.js').BotState
 const states = require('./state.js').states
 
-let inbox = [
-  { key : 'A', seq : 0, value : { content : { channel : 'bots', text : '!rollcall AA00' }}},
-  { key : 'Z', seq : 0, value : { content : { channel : 'bots', text : '!ok ZZ00 AA00 dat://Z' }}},
-  { key : 'A', seq : 1, value : { content : { channel : 'bots', text : '!job ZZ00 dat://abc666' }}},
-  { key : 'A', seq : 2, value : { content : { channel : 'bots', text : '!rollcall AA11' }}},
-  { key : 'B', seq : 0, value : { content : { channel : 'bots', text : '!ok BB00 AA11 dat://B' }}},
-  { key : 'C', seq : 0, value : { content : { channel : 'bots', text : '!ok CC00 AA11 dat://C' }}},
-  { key : 'D', seq : 0, value : { content : { channel : 'bots', text : '!ok DD00 BB00,CC00 dat://D' }}},
-  { key : 'E', seq : 0, value : { content : { channel : 'bots', text : '!ok EE00 BB00 dat://E' }}},
-  { key : 'A', seq : 3, value : { content : { channel : 'bots', text : '!job DD00,EE00 dat://abc777' }}},
-  { key : 'B', seq : 1, value : { content : { channel : 'bots', text : '!done dat://abc777' }}},
-]
+const path       = require('path')
+const minimist   = require('minimist')
+const mkdirp     = require('mkdirp')
+const hyperdrive = require('hyperdrive')
+const Cabal      = require('cabal-core')
 
-let inboxA = inbox
-let inboxB = [inbox[1], inbox[2], inbox[3], inbox[4], inbox[5], inbox[6], inbox[7], inbox[8], inbox[9]]
-let inboxC = [inbox[2], inbox[3], inbox[5], inbox[6], inbox[7], inbox[8]]
-let inboxD = inbox
-let inboxE = [inbox[0], inbox[1], inbox[2], inbox[3], inbox[4]]
+function error (err) {
+  if (err) {
+    console.error(err)
+    process.exit(1)
+  }
+}
 
-function readAll(state, inbox, idx, cb) {
-  if (idx >= inbox.length) return cb(null, state)
-  state.next(inbox[idx], (err, s) => {
+var argv = minimist(process.argv.slice(2), {
+  alias: { d : 'datadir', c : 'channel' },
+  default: { datadir : '.datadir', channel : 'bots' },
+  string: [ '_' ]
+})
+
+mkdirp.sync(argv.datadir)
+
+let addr = argv._[0].replace(/^cabal:\/*/,'')
+let db = level()
+let cabal = Cabal(path.join(argv.datadir, 'cabal'), addr, { db })
+let drive = hyperdrive(path.join(argv.datadir, 'dat'))
+let botid = undefined
+
+function fetchMail(channel, cb) {
+  let arr = []
+  cabal.messages.read(channel, { limit : 100 })
+    .on('data', (msg) => arr.push(msg))
+    .once('end', () => cb(null, arr.reverse()))
+}
+
+function readAll(state, mail, idx, cb) {
+  if (idx >= mail.length) return cb(null, state)
+  state.next(mail[idx], (err, s) => {
     if (err) return cb(err)
-    else readAll(state, inbox, idx + 1, cb)
+    else readAll(state, mail, idx + 1, cb)
   })
 }
 
-let db = level()
-let kv = umkv(db)
-let botstate = BotState('E', db, kv)
+function publish (text) {
+  cabal.publish({
+    type: 'chat/text',
+    content: { channel: 'bots', text }
+  })
+}
 
-readAll(botstate, inboxE, 0, (err, bs) => {
-  console.error(err)
-  let state = botstate.state()
-  console.log('end state ->', state)
-  switch (state) {
-    case states.ACK_ROLL:
-      kv.get('head', (err, ids) => {
-        let nonce = crypto.randomBytes(2).toString('hex')
-        console.log('!ok', nonce, ids.join(','), 'dat://abc123')
-      })
-      break;
+function work() {
+  let bdb = level()
+  let kv = umkv(bdb)
+  let botstate = BotState(botid, bdb, kv)
 
-    case states.DO_JOB:
-      break;
-  }
+  fetchMail('bots', ((err, mail) => {
+    if (err) return error(err)
+    readAll(botstate, mail, 0, (err, bs) => {
+      if (err) return error(err)
+      console.log('end state ->', botstate.state())
+
+      switch (botstate.state()) {
+        case states.ACK_ROLL:
+          kv.get('head', (err, ids) => {
+            let nonce = crypto.randomBytes(2).toString('hex')
+            let uri = 'dat://' + drive.key.toString('hex')
+            let ack = '!ok ' + nonce + ' ' + ids.join(',') + ' ' + uri
+            publish(ack)
+          })
+          break;
+
+        case states.DO_JOB:
+          let job = botstate.job()
+          console.log('do job ->', job)
+          break;
+      }
+      setTimeout(work, 2500)
+    })
+  }))
+}
+
+cabal.swarm(error)
+drive.once('error', error)
+drive.once('ready', () => {
+  cabal.getLocalKey((err, key) => {
+    if (err) { error(err) }
+    else {
+      console.log(key)
+      botid = key
+      work()
+    }
+  })
 })
