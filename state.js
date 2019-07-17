@@ -118,5 +118,5 @@ function BotState(id, db, kv) {
     }
   }
 
-  return { next }
+  return { next, state : () => state }
 }

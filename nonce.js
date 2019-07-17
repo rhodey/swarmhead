@@ -1,3 +1,4 @@
+const crypto = require('crypto')
 const level = require('memdb')
 const umkv = require('unordered-materialized-kv')
 const BotState = require('./state.js').BotState
@@ -22,35 +23,31 @@ let inboxC = [inbox[2], inbox[3], inbox[5], inbox[6], inbox[7], inbox[8]]
 let inboxD = inbox
 let inboxE = [inbox[0], inbox[1], inbox[2], inbox[3], inbox[4]]
 
-let db = level()
-let kv = umkv(db)
-let state = BotState('B', db, kv)
-
-next(0, inboxB, (err, state) => {
-  console.error(err)
-  console.log('done')
-})
-
-function next(idx, inbox, cb) {
-  if (idx >= inbox.length) return cb(null)
-  state.next(inbox[idx], (err, state) => {
+function readAll(state, inbox, idx, cb) {
+  if (idx >= inbox.length) return cb(null, state)
+  state.next(inbox[idx], (err, s) => {
     if (err) return cb(err)
-    switch (state) {
-      case states.ACK_ROLL:
-        kv.get('head', (err, ids) => {
-          console.log('!ok n0nc3', ids, 'dat://abc123')
-          next(idx + 1, inbox, cb)
-        })
-        break;
-
-      case states.DO_JOB:
-        next(idx + 1, inbox, cb)
-        break;
-
-      default:
-        next(idx + 1, inbox, cb)
-    }
+    else readAll(state, inbox, idx + 1, cb)
   })
 }
 
-console.log(states)
+let db = level()
+let kv = umkv(db)
+let botstate = BotState('E', db, kv)
+
+readAll(botstate, inboxE, 0, (err, bs) => {
+  console.error(err)
+  let state = botstate.state()
+  console.log('end state ->', state)
+  switch (state) {
+    case states.ACK_ROLL:
+      kv.get('head', (err, ids) => {
+        let nonce = crypto.randomBytes(2).toString('hex')
+        console.log('!ok', nonce, ids.join(','), 'dat://abc123')
+      })
+      break;
+
+    case states.DO_JOB:
+      break;
+  }
+})
