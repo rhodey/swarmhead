@@ -43,7 +43,7 @@ function fetchMail(channel, cb) {
 function readAll(state, mail, idx, cb) {
   if (idx >= mail.length) return cb(null, state)
   state.next(mail[idx], (err, s) => {
-    if (err) return cb(err)
+    if (err && !err.notFound) return cb(err)
     else readAll(state, mail, idx + 1, cb)
   })
 }
@@ -86,7 +86,7 @@ function work() {
             exec('dat clone ' + job.uri + ' ' + pathin, (err, stdout, stderr) => {
               if (err) return error(err)
               else {
-                console.log(stdout)
+                console.log(job)
                 setTimeout(work, 2500)
               }
             })

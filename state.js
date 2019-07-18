@@ -32,7 +32,9 @@ function BotState(id, db, kv) {
   function followPointer(ptr, bots, cb) {
     let val = nonces[ptr]
     if (val === undefined) {
-      cb('message ' + ptr + ' not found.')
+      let err = new Error('message ' + ptr + ' not found.')
+      err.notFound = true
+      cb(err)
     } else if (val === 0) {
       cb(null)
     } else {
@@ -103,8 +105,8 @@ function BotState(id, db, kv) {
           return cb(err)
         } else if (bots.has(id)) {
           state = states.DO_JOB
-          let archives = Array.from(bots).map((key) => peers[key])
-          job = { uri : parts[2], peers : bots, archives }
+          job = { uri : parts[2], peers : { } }
+          bots.forEach((key) => job.peers[key] = peers[key])
         }
         cb(null, state)
       })
