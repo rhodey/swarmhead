@@ -31,7 +31,7 @@ let db = memdb()
 let cabal = Cabal(path.join(argv.datadir, 'cabal'), addr, { db })
 let datout = hyperdrive(path.join(argv.datadir, 'datout'))
 let datkey = undefined
-let botkey = undefined
+let cabalkey = undefined
 let state = undefined
 
 function fetchMail(channel, cb) {
@@ -60,7 +60,7 @@ function publish (text) {
 function work() {
   let bdb = memdb()
   let kv = umkv(bdb)
-  let botstate = BotState(botkey, bdb, kv)
+  let botstate = BotState(cabalkey, bdb, kv)
 
   fetchMail('bots', ((err, mail) => {
     if (err) return error(err)
@@ -92,7 +92,7 @@ function work() {
               proc.exec('npm install', { cwd : pathin }, (err) => {
                 if (err) return error(err)
                 let pathout = path.resolve(path.join(argv.datadir, 'datout'))
-                let config = Object.assign({ }, job, { hyperdrive : pathout })
+                let config = Object.assign({ }, job, { cabalkey, hyperdrive : pathout })
                 let configFile = path.join(pathin, 'config.json')
                 fs.writeFileSync(configFile, JSON.stringify(config))
 
@@ -129,7 +129,7 @@ datout.once('ready', () => {
     if (err) { error(err) }
     else {
       console.log('cabal pubkey ->', key)
-      botkey = key
+      cabalkey = key
       work()
     }
   })

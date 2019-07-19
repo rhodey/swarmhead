@@ -17,7 +17,7 @@ The OK command is issued by bots and begins with the text `!ok` and is followed 
 The job command is issued by a Bot Master and begins with the text `!job` and is followed by a nonce and then a hyperdrive URI. The nonce must reference a previous OK command. The hyperdrive must follow the pattern described in "Job Runtime" below. The list of peers assigned to the job is constructed by following the referenced OK command backwards to rollcall. Example: `!job cd34 dat://def456`.
 
 ## Job Runtime
-Every job must have a `package.json` file with a start script. Get your dat URI by running `dat share` then issue `!rollcall` and later `!job` using the dat URI.
+Every job must have a `package.json` file with a start script.  At runtime your job will have access to a file `config.json` in its working directory, this file contains an object `peers` which maps peer cabal public keys to peer hyperdrive public keys. Get the dat URI for your job by running `dat share` then issue `!rollcall` and later `!job`.
 
 ## Running a Bot
 Bots write all of their state to the `/app` directory, if you want to persist state between runs of your bot you need to use [docker volumes](https://docs.docker.com/storage/volumes/) like below. If you don't care about persisting state skip the first docker command and the `--mount` option.
