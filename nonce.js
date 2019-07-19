@@ -1,5 +1,6 @@
 const minimist      = require('minimist')
-const exec          = require('child_process').exec
+const fs            = require('fs')
+const proc          = require('child_process')
 const mkdirp        = require('mkdirp')
 const crypto        = require('crypto')
 const path          = require('path')
@@ -31,7 +32,8 @@ let addr = argv._[0].replace(/^cabal:\/*/,'')
 let db = level()
 let cabal = Cabal(path.join(argv.datadir, 'cabal'), addr, { db })
 let datout = hyperdrive(path.join(argv.datadir, 'datout'))
-let botid = undefined
+let datkey = undefined
+let botkey = undefined
 
 function fetchMail(channel, cb) {
   let arr = []
@@ -58,7 +60,7 @@ function publish (text) {
 function work() {
   let bdb = level()
   let kv = umkv(bdb)
-  let botstate = BotState(botid, bdb, kv)
+  let botstate = BotState(botkey, bdb, kv)
 
   fetchMail('bots', ((err, mail) => {
     if (err) return error(err)
@@ -70,8 +72,7 @@ function work() {
         case states.ACK_ROLL:
           kv.get('head', (err, ids) => {
             let nonce = crypto.randomBytes(2).toString('hex')
-            let uri = 'dat://' + datout.key.toString('hex')
-            let ack = '!ok ' + nonce + ' ' + ids.join(',') + ' ' + uri
+            let ack = `!ok ${nonce} ${ids.join(',')} dat://${datkey}`
             publish(ack)
             setTimeout(work, 2500)
           })
@@ -79,16 +80,30 @@ function work() {
 
         case states.DO_JOB:
           let job = botstate.job()
-          let key = job.uri.replace(/^dat:\/*/,'')
           let pathin = path.join(argv.datadir, 'datin')
-          exec('rm -rf ' + pathin, (err, stdout, stderr) => {
+          proc.exec(`rm -rf ${pathin}`, (err, stdout, stderr) => {
             if (err) return error(err)
-            exec('dat clone ' + job.uri + ' ' + pathin, (err, stdout, stderr) => {
+            proc.exec(`dat clone ${job.uri} ${pathin}`, (err, stdout, stderr) => {
               if (err) return error(err)
-              else {
-                console.log(job)
-                setTimeout(work, 2500)
-              }
+              proc.exec('npm install', { cwd : pathin }, (err) => {
+                if (err) return error(err)
+                let pathout = path.resolve(path.join(argv.datadir, 'datout'))
+                let config = Object.assign({ }, job, { hyperdrive : pathout })
+                let configFile = path.join(pathin, 'config.json')
+                fs.writeFileSync(configFile, JSON.stringify(config))
+
+                let child = proc.spawn('node', ['index.js'], { cwd : pathin })
+                child.stdout.on('data', (data) => publish('!stdout> ' + data.toString().trim()))
+                child.stderr.on('data', (data) => publish('!stderr> ' + data.toString().trim()))
+                child.once('close', (code) => {
+                  if (code === 0) {
+                    publish(`!done ${job.uri}`)
+                  } else {
+                    publish(`!error ${job.uri}`)
+                  }
+                  setTimeout(work, 2500)
+                })
+              })
             })
           })
           break;
@@ -103,11 +118,13 @@ function work() {
 cabal.swarm(error)
 datout.once('error', error)
 datout.once('ready', () => {
+  datkey = datout.key.toString('hex')
+  datout.close()
   cabal.getLocalKey((err, key) => {
     if (err) { error(err) }
     else {
       console.log(key)
-      botid = key
+      botkey = key
       work()
     }
   })

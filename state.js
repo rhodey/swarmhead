@@ -32,7 +32,7 @@ function BotState(id, db, kv) {
   function followPointer(ptr, bots, cb) {
     let val = nonces[ptr]
     if (val === undefined) {
-      let err = new Error('message ' + ptr + ' not found.')
+      let err = new Error(`message ${ptr} not found.`)
       err.notFound = true
       cb(err)
     } else if (val === 0) {
@@ -94,23 +94,32 @@ function BotState(id, db, kv) {
         if (err) cb(err)
         else cb(null, state)
       })
-    } else if (state === states.WAIT_JOB && /^!job\b/.test(text)) {
+    } else if (/^!job\b/.test(text)) {
       let parts = text.split(' ')
       if (parts.length != 3) cb(null, state)
       let prev = parts[1].split(',')
 
-      followPointers(0, prev, new Set(), (err, bots) => {
-        if (err) {
-          state = states.WAIT_ROLL
-          return cb(err)
-        } else if (bots.has(id)) {
-          state = states.DO_JOB
-          job = { uri : parts[2], peers : { } }
-          bots.forEach((key) => job.peers[key] = peers[key])
-        }
+      if (state === states.WAIT_JOB) {
+        followPointers(0, prev, new Set(), (err, bots) => {
+          if (err) {
+            state = states.WAIT_ROLL
+            return cb(err)
+          } else if (!bots.has(id)) {
+            state = states.WAIT_ROLL
+          } else {
+            state = states.DO_JOB
+            job = { uri : parts[2], peers : { } }
+            bots.forEach((key) => job.peers[key] = peers[key])
+          }
+          cb(null, state)
+        })
+      } else if (state !== state.DO_JOB) {
+        state = states.WAIT_ROLL
         cb(null, state)
-      })
-    } else if (/^!done\b/.test(text)) {
+      } else {
+        cb(null, state)
+      }
+    } else if (/^!done\b/.test(text) || /^!error\b/.test(text)) {
       if (state === states.DO_JOB && id === msg.key) {
         state = states.WAIT_ROLL
         job = undefined
