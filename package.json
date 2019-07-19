@@ -2,7 +2,7 @@
   "name": "swarmhead",
   "version": "1.0.0",
   "scripts": {
-    "start": "node bot.js --nick ucbot --channel bots -d .datadir cabal://14bc77d788fdaf07b89b28e9d276e47f2e44011f4adb981921056e1b3b40e99e"
+    "start": "node bin/cmd.js cabal://fdad7fe5712700db16f8c420958dfa18866adcb2de4b7dfca61f91f9604f74c9"
   },
   "dependencies": {
     "minimist": "^1.2.0",
