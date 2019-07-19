@@ -2,7 +2,7 @@
   "name": "swarmhead",
   "version": "1.0.0",
   "scripts": {
-    "start": "node bin/cmd.js cabal://fdad7fe5712700db16f8c420958dfa18866adcb2de4b7dfca61f91f9604f74c9"
+    "start": "node bin/cmd.js -d .datadir cabal://c0d1a3dbf9b605b76424a6494c47bc736351ab26e4d5c6d752b89db624edf7b3"
   },
   "dependencies": {
     "minimist": "^1.2.0",
@@ -10,8 +10,6 @@
     "level": "^5.0.1",
     "memdb": "^1.3.1",
     "hyperdrive": "^9.15.0",
-    "discovery-swarm": "^6.0.0",
-    "dat-swarm-defaults": "^1.0.2",
     "unordered-materialized-kv": "^1.2.1",
     "cabal-core": "^6.0.0"
   }

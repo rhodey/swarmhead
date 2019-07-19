@@ -19,8 +19,8 @@ function error (err) {
 }
 
 var argv = minimist(process.argv.slice(2), {
-  alias: { d : 'datadir', c : 'channel' },
-  default: { datadir : '.datadir', channel : 'bots' },
+  alias: { d : 'datadir' },
+  default: { datadir : '/app' },
   string: [ '_' ]
 })
 
@@ -118,11 +118,12 @@ cabal.swarm(error)
 datout.once('error', error)
 datout.once('ready', () => {
   datkey = datout.key.toString('hex')
+  console.log('dat pubkey ->', datkey)
   datout.close()
   cabal.getLocalKey((err, key) => {
     if (err) { error(err) }
     else {
-      console.log(key)
+      console.log('cabal pubkey ->', key)
       botkey = key
       work()
     }
