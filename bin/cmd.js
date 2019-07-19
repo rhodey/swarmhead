@@ -1,15 +1,15 @@
-const minimist      = require('minimist')
-const fs            = require('fs')
-const proc          = require('child_process')
-const mkdirp        = require('mkdirp')
-const crypto        = require('crypto')
-const path          = require('path')
-const memdb         = require('memdb')
-const umkv          = require('unordered-materialized-kv')
-const hyperdrive    = require('hyperdrive')
-const Cabal         = require('cabal-core')
-const BotState      = require('../index.js').BotState
-const states        = require('../index.js').states
+const minimist   = require('minimist')
+const fs         = require('fs')
+const proc       = require('child_process')
+const mkdirp     = require('mkdirp')
+const crypto     = require('crypto')
+const path       = require('path')
+const memdb      = require('memdb')
+const umkv       = require('unordered-materialized-kv')
+const hyperdrive = require('hyperdrive')
+const Cabal      = require('cabal-core')
+const BotState   = require('../index.js').BotState
+const states     = require('../index.js').states
 
 function error (err) {
   if (err) {
