@@ -130,3 +130,7 @@ datout.once('ready', () => {
     }
   })
 })
+
+process.on('SIGINT', () => process.exit(0))
+process.stdin.once('end', () => process.exit(0))
+process.stdin.on('data', () => { })
