@@ -96,7 +96,7 @@ function work() {
                 let configFile = path.join(pathin, 'config.json')
                 fs.writeFileSync(configFile, JSON.stringify(config))
 
-                let child = proc.spawn('node', ['index.js'], { cwd : pathin })
+                let child = proc.spawn('npm', ['start'], { cwd : pathin })
                 child.stdout.on('data', (data) => publish('!stdout> ' + data.toString().trim()))
                 child.stderr.on('data', (data) => publish('!stderr> ' + data.toString().trim()))
                 child.once('close', (code) => {
