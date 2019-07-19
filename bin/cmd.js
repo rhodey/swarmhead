@@ -32,6 +32,7 @@ let cabal = Cabal(path.join(argv.datadir, 'cabal'), addr, { db })
 let datout = hyperdrive(path.join(argv.datadir, 'datout'))
 let datkey = undefined
 let botkey = undefined
+let state = undefined
 
 function fetchMail(channel, cb) {
   let arr = []
@@ -65,9 +66,12 @@ function work() {
     if (err) return error(err)
     readAll(botstate, mail, 0, (err, bs) => {
       if (err) return error(err)
-      console.log('end state ->', botstate.state())
+      if (state !== botstate.state()) {
+        state = botstate.state()
+        console.log('bot state ->', state)
+      }
 
-      switch (botstate.state()) {
+      switch (state) {
         case states.ACK_ROLL:
           kv.get('head', (err, ids) => {
             let nonce = crypto.randomBytes(2).toString('hex')
@@ -80,6 +84,7 @@ function work() {
         case states.DO_JOB:
           let job = botstate.job()
           let pathin = path.join(argv.datadir, 'datin')
+          console.log('do job ->', job.uri)
           proc.exec(`rm -rf ${pathin}`, (err, stdout, stderr) => {
             if (err) return error(err)
             proc.exec(`dat clone ${job.uri} ${pathin}`, (err, stdout, stderr) => {
