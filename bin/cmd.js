@@ -4,12 +4,10 @@ const proc          = require('child_process')
 const mkdirp        = require('mkdirp')
 const crypto        = require('crypto')
 const path          = require('path')
-const level         = require('memdb')
+const memdb         = require('memdb')
 const umkv          = require('unordered-materialized-kv')
 const hyperdrive    = require('hyperdrive')
 const Cabal         = require('cabal-core')
-const Swarm         = require('discovery-swarm')
-const swarmDefaults = require('dat-swarm-defaults')
 const BotState      = require('../index.js').BotState
 const states        = require('../index.js').states
 
@@ -29,7 +27,7 @@ var argv = minimist(process.argv.slice(2), {
 mkdirp.sync(argv.datadir)
 
 let addr = argv._[0].replace(/^cabal:\/*/,'')
-let db = level()
+let db = memdb()
 let cabal = Cabal(path.join(argv.datadir, 'cabal'), addr, { db })
 let datout = hyperdrive(path.join(argv.datadir, 'datout'))
 let datkey = undefined
@@ -59,7 +57,7 @@ function publish (text) {
 }
 
 function work() {
-  let bdb = level()
+  let bdb = memdb()
   let kv = umkv(bdb)
   let botstate = BotState(botkey, bdb, kv)
 
