@@ -60,7 +60,7 @@ function BotState(id, db, kv) {
     if (/^!rollcall\b/.test(text)) {
       let parts = text.split(' ')
       if (parts.length != 2) return cb(null, state)
-      if (state === states.WAIT_ROLL) {
+      if (state !== states.DO_JOB) {
         state = states.ACK_ROLL
       }
 
