@@ -20,7 +20,7 @@ The job command is issued by a Bot Master and begins with the text `!job` and is
 Every job must have a `package.json` file with a start script. Get your dat URI by running `dat share` then issue `!rollcall` and later `!job` using the dat URI.
 
 ## Running a Bot
-Bots write all of their state to the `/app` directory, if you want to persist state between runs of your bot you need to use [docker volumes](https://docs.docker.com/storage/volumes/) like below. If you don't care about persisting state omit the first docker command and the `--mount` option.
+Bots write all of their state to the `/app` directory, if you want to persist state between runs of your bot you need to use [docker volumes](https://docs.docker.com/storage/volumes/) like below. If you don't care about persisting state skip the first docker command and the `--mount` option.
 ```
 $ docker volume create bot00
 $ docker run --rm -it \
