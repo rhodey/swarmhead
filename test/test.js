@@ -24,7 +24,7 @@ test('initial state', function (t) {
 })
 
 test('ack rollcall', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   let db = memdb()
   let kv = umkv(db)
@@ -38,6 +38,7 @@ test('ack rollcall', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.ACK_ROLL)
     kv.get('head', (err, ids) => {
       t.deepEqual(ids, ['AA11'])
@@ -46,7 +47,7 @@ test('ack rollcall', function (t) {
 })
 
 test('recall rollcall', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   let db = memdb()
   let kv = umkv(db)
@@ -59,6 +60,7 @@ test('recall rollcall', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.ACK_ROLL)
     kv.get('head', (err, ids) => {
       t.deepEqual(ids, ['AA22'])
@@ -67,7 +69,7 @@ test('recall rollcall', function (t) {
 })
 
 test('wait job split', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   let db = memdb()
   let kv = umkv(db)
@@ -80,6 +82,7 @@ test('wait job split', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.WAIT_JOB)
     kv.get('head', (err, ids) => {
       t.deepEqual(ids, ['BB00', 'CC00'])
@@ -88,7 +91,7 @@ test('wait job split', function (t) {
 })
 
 test('wait job join', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   let db = memdb()
   let kv = umkv(db)
@@ -102,6 +105,7 @@ test('wait job join', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.WAIT_JOB)
     kv.get('head', (err, ids) => {
       t.deepEqual(ids, ['DD00'])
@@ -110,7 +114,7 @@ test('wait job join', function (t) {
 })
 
 test('do job', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   let db = memdb()
   let kv = umkv(db)
@@ -128,6 +132,7 @@ test('do job', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.DO_JOB)
     let peers = Object.keys(botstate.job().peers)
     t.deepEqual(peers, ['D', 'B', 'C', 'E'])
@@ -135,7 +140,7 @@ test('do job', function (t) {
 })
 
 test('do job noise', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   let db = memdb()
   let kv = umkv(db)
@@ -154,6 +159,7 @@ test('do job noise', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.DO_JOB)
     let peers = Object.keys(botstate.job().peers)
     t.deepEqual(peers, ['D', 'B', 'C', 'E'])
@@ -161,7 +167,7 @@ test('do job noise', function (t) {
 })
 
 test('done job', function (t) {
-  t.plan(1)
+  t.plan(2)
 
   let db = memdb()
   let kv = umkv(db)
@@ -175,12 +181,13 @@ test('done job', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
     t.equal(botstate.state(), states.WAIT_ROLL)
   })
 })
 
 test('error job', function (t) {
-  t.plan(1)
+  t.plan(2)
 
   let db = memdb()
   let kv = umkv(db)
@@ -194,6 +201,49 @@ test('error job', function (t) {
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
+    t.equal(botstate.state(), states.WAIT_ROLL)
+  })
+})
+
+test('not my job', function (t) {
+  t.plan(3)
+
+  let db = memdb()
+  let kv = umkv(db)
+  let botstate = BotState('B', db, kv)
+
+  let mail = [
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA00' }}},
+    { key : 'Z', value : { content : { channel : 'bots', text : '!ok ZZ00 AA00 dat://Z' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!job ZZ00 dat://abc666' }}},
+  ]
+
+  readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
+    t.equal(botstate.state(), states.WAIT_ROLL)
+    kv.get('head', (err, ids) => {
+      t.deepEqual(ids, ['ZZ00'])
+    })
+  })
+})
+
+test('cannot start job', function (t) {
+  t.plan(2)
+
+  let db = memdb()
+  let kv = umkv(db)
+  let botstate = BotState('B', db, kv)
+
+  let mail = [
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA11' }}},
+    { key : 'B', value : { content : { channel : 'bots', text : '!ok BB00 AA11 dat://B' }}},
+    { key : 'C', value : { content : { channel : 'bots', text : '!ok CC00 AA11 dat://C' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!job EE00 dat://abc777' }}},
+  ]
+
+  readAll(botstate, mail, 0, (err, state) => {
+    t.ok(err.notFound)
     t.equal(botstate.state(), states.WAIT_ROLL)
   })
 })
