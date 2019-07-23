@@ -11,7 +11,7 @@ Bots write all of their state to the `/app` directory, if you want to persist st
 ```
 $ docker volume create bot00
 $ docker run -d \
-    --name bot00
+    --name bot00 \
     --mount source=bot00,target=/app \
     swarmhead cabal://c0d1a3dbf9b605b76424a6494c47bc736351ab26e4d5c6d752b89db624edf7b3
 ```
