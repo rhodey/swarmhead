@@ -7,10 +7,11 @@ $ docker build -t swarmhead .
 ```
 
 ## Running a Bot
-Bots write all of their state to the `/app` directory, if you want to persist state between runs of your bot you need to use [docker volumes](https://docs.docker.com/storage/volumes/) like below. If you don't care about persisting state skip the first docker command and the `--mount` option.
+Bots write all of their state to the `/app` directory, if you want to persist state between runs of your bot you need to use [docker volumes](https://docs.docker.com/storage/volumes/) like below. Use `docker logs -f bot00` to check in on your bot.
 ```
 $ docker volume create bot00
-$ docker run --rm -it \
+$ docker run -d \
+    --name bot00
     --mount source=bot00,target=/app \
     swarmhead cabal://c0d1a3dbf9b605b76424a6494c47bc736351ab26e4d5c6d752b89db624edf7b3
 ```
