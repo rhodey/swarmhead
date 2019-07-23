@@ -16,9 +16,10 @@ function BotState(id, db, kv) {
   let job = undefined
 
   function clearDb(cb) {
+    let batch = db.batch()
     db.createKeyStream()
-      .on('data', (key) => db.del(key))
-      .once('end', cb)
+      .on('data', (key) => { batch = batch.del(key) })
+      .once('end', () => batch.write(cb))
   }
 
   function filter(msg) {
@@ -62,11 +63,11 @@ function BotState(id, db, kv) {
       if (parts.length != 2) return cb(null, state)
       if (state !== states.DO_JOB) {
         state = states.ACK_ROLL
+        job = undefined
       }
 
       let nonce = parts[1]
       nonces[nonce] = 0
-      job = undefined
 
       clearDb(() => {
         let doc = { id : nonce, key : 'head', links : [] }

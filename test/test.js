@@ -45,6 +45,27 @@ test('ack rollcall', function (t) {
   })
 })
 
+test('recall rollcall', function (t) {
+  t.plan(2)
+
+  let db = memdb()
+  let kv = umkv(db)
+  let botstate = BotState('B', db, kv)
+
+  let mail = [
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA11' }}},
+    { key : 'B', value : { content : { channel : 'bots', text : '!ok BB00 AA11 dat://B' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA22' }}},
+  ]
+
+  readAll(botstate, mail, 0, (err, state) => {
+    t.equal(botstate.state(), states.ACK_ROLL)
+    kv.get('head', (err, ids) => {
+      t.deepEqual(ids, ['AA22'])
+    })
+  })
+})
+
 test('wait job split', function (t) {
   t.plan(2)
 
@@ -124,12 +145,12 @@ test('do job noise', function (t) {
     { key : 'A', value : { content : { channel : 'bots', text : '!job ZZ00 dat://abc666' }}},
     { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA11' }}},
     { key : 'Z', value : { content : { channel : 'bots', text : '!ok ZZ00 AA00 dat://Z' }}},
-    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA22' }}},
     { key : 'B', value : { content : { channel : 'bots', text : '!ok BB00 AA11 dat://B' }}},
     { key : 'C', value : { content : { channel : 'bots', text : '!ok CC00 AA11 dat://C' }}},
     { key : 'D', value : { content : { channel : 'bots', text : '!ok DD00 BB00,CC00 dat://D' }}},
     { key : 'E', value : { content : { channel : 'bots', text : '!ok EE00 BB00 dat://E' }}},
     { key : 'A', value : { content : { channel : 'bots', text : '!job DD00,EE00 dat://abc777' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA22' }}},
   ]
 
   readAll(botstate, mail, 0, (err, state) => {
