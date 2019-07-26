@@ -154,6 +154,7 @@ test('do job noise', function (t) {
     { key : 'C', value : { content : { channel : 'bots', text : '!ok CC00 AA11 dat://C' }}},
     { key : 'D', value : { content : { channel : 'bots', text : '!ok DD00 BB00,CC00 dat://D' }}},
     { key : 'E', value : { content : { channel : 'bots', text : '!ok EE00 BB00 dat://E' }}},
+    { key : 'F', value : { content : { channel : 'bots', text : '!ok DD00,EE00 dat://E' }}},
     { key : 'A', value : { content : { channel : 'bots', text : '!job DD00,EE00 dat://abc777' }}},
     { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA22' }}},
   ]
