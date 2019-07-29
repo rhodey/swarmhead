@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "test": "tape test/*.js",
-    "start": "node bin/cmd.js -d .datadir cabal://c0d1a3dbf9b605b76424a6494c47bc736351ab26e4d5c6d752b89db624edf7b3"
+    "start": "node bin/cmd.js -s .state cabal://c0d1a3dbf9b605b76424a6494c47bc736351ab26e4d5c6d752b89db624edf7b3"
   },
   "dependencies": {
     "minimist": "^1.2.0",

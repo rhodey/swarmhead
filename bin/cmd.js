@@ -19,17 +19,18 @@ function error (err) {
 }
 
 var argv = minimist(process.argv.slice(2), {
-  alias: { d : 'datadir' },
-  default: { datadir : '/app' },
+  alias: { s : 'state' },
+  default: { state : '/app' },
   string: [ '_' ]
 })
 
-mkdirp.sync(argv.datadir)
+mkdirp.sync(argv.state)
 
 let addr = argv._[0].replace(/^cabal:\/*/,'')
 let db = memdb()
-let cabal = Cabal(path.join(argv.datadir, 'cabal'), addr, { db })
-let datout = hyperdrive(path.join(argv.datadir, 'datout'))
+let cabal = Cabal(path.join(argv.state, 'cabal'), addr, { db })
+let pathshare = path.resolve(path.join(argv.state, 'share'))
+let datshare = hyperdrive(pathshare)
 let datkey = undefined
 let cabalkey = undefined
 let state = undefined
@@ -83,20 +84,21 @@ function work() {
 
         case states.DO_JOB:
           let job = botstate.job()
-          let pathin = path.join(argv.datadir, 'datin')
+          let pathjob = path.join(argv.state, 'job')
           console.log('do job ->', job.uri)
-          proc.exec(`rm -rf ${pathin}`, (err, stdout, stderr) => {
+          proc.exec(`rm -rf ${pathjob}`, (err, stdout, stderr) => {
             if (err) return error(err)
-            proc.exec(`dat clone ${job.uri} ${pathin}`, (err, stdout, stderr) => {
+            publish('!stdout> cloning job...')
+            proc.exec(`dat clone ${job.uri} ${pathjob}`, (err, stdout, stderr) => {
               if (err) return error(err)
-              proc.exec('npm install', { cwd : pathin }, (err) => {
+              publish('!stdout> npm install...')
+              proc.exec('npm install', { cwd : pathjob }, (err) => {
                 if (err) return error(err)
-                let pathout = path.resolve(path.join(argv.datadir, 'datout'))
-                let config = Object.assign({ }, job, { cabalkey, hyperdrive : pathout })
-                let configFile = path.join(pathin, 'config.json')
+                let config = Object.assign({ }, job, { cabalkey, share : pathshare })
+                let configFile = path.join(pathjob, 'config.json')
                 fs.writeFileSync(configFile, JSON.stringify(config))
 
-                let child = proc.spawn('npm', ['start'], { cwd : pathin })
+                let child = proc.spawn('npm', ['start'], { cwd : pathjob })
                 child.stdout.on('data', (data) => publish('!stdout> ' + data.toString().trim()))
                 child.stderr.on('data', (data) => publish('!stderr> ' + data.toString().trim()))
                 child.once('close', (code) => {
@@ -120,16 +122,16 @@ function work() {
 }
 
 cabal.swarm(error)
-datout.once('error', error)
-datout.once('ready', () => {
-  datkey = datout.key.toString('hex')
+datshare.once('error', error)
+datshare.once('ready', () => {
+  datkey = datshare.key.toString('hex')
   console.log('dat pubkey ->', datkey)
-  datout.close()
+  datshare.close()
   cabal.getLocalKey((err, key) => {
     if (err) { error(err) }
     else {
-      console.log('cabal pubkey ->', key)
       cabalkey = key
+      console.log('cabal pubkey ->', cabalkey)
       work()
     }
   })
