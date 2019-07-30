@@ -1,10 +1,11 @@
-FROM alpine:edge
+FROM alpine:3.10
 
 MAINTAINER rhodey@anhonestefort.org
 
 RUN apk add --no-cache \
   bash \
-  nodejs-current \
+  git \
+  nodejs \
   npm || true
 
 RUN npm install -g dat

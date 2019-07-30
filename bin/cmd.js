@@ -7,6 +7,7 @@ const path       = require('path')
 const memdb      = require('memdb')
 const umkv       = require('unordered-materialized-kv')
 const hyperdrive = require('hyperdrive')
+const Discovery  = require('hyperdiscovery')
 const Cabal      = require('cabal-core')
 const BotState   = require('../index.js').BotState
 const states     = require('../index.js').states
@@ -30,10 +31,19 @@ let addr = argv._[0].replace(/^cabal:\/*/,'')
 let db = memdb()
 let cabal = Cabal(path.join(argv.state, 'cabal'), addr, { db })
 let pathshare = path.resolve(path.join(argv.state, 'share'))
-let datshare = hyperdrive(pathshare)
+let archive = hyperdrive(pathshare)
 let datkey = undefined
 let cabalkey = undefined
 let state = undefined
+let job = undefined
+
+const peerCount = () => Object.keys(job.peers).length
+
+const peerOrder = () => {
+  let arr = Object.keys(job.peers)
+  arr.sort()
+  return arr.indexOf(cabalkey)
+}
 
 function fetchMail(channel, cb) {
   let arr = []
@@ -52,16 +62,97 @@ function readAll(state, mail, idx, cb) {
 }
 
 function publish (text) {
+  console.log('publish>', text)
   cabal.publish({
     type: 'chat/text',
     content: { channel: 'bots', text }
   })
 }
 
+function doJob() {
+  let pathjob = path.join(argv.state, 'job')
+  publish(`!stdout> begin job ${job.uri}.`)
+  proc.exec(`rm -rf ${pathjob}`, (err, stdout, stderr) => {
+    if (err) return error(err)
+    publish('!stdout> cloning job...')
+    proc.exec(`dat clone ${job.uri} ${pathjob}`, (err, stdout, stderr) => {
+      if (err) return error(err)
+      publish('!stdout> npm install...')
+      proc.exec('npm install', { cwd : pathjob }, (err) => {
+        if (err) return error(err)
+        let config = Object.assign({ }, job, { cabalkey, share : pathshare })
+        let configFile = path.join(pathjob, 'config.json')
+        fs.writeFileSync(configFile, JSON.stringify(config))
+
+        job.child = proc.spawn('node', ['index.js'], { cwd : pathjob })
+        job.child.stdout.on('data', (data) => publish('!stdout> ' + data.toString().trim()))
+        job.child.stderr.on('data', (data) => publish('!stderr> ' + data.toString().trim()))
+        job.child.once('close', (code) => {
+          if (code === 0) {
+            publish(`!done ${job.uri}`)
+          } else {
+            publish(`!error ${job.uri}`)
+          }
+          job = undefined
+        })
+      })
+    })
+  })
+}
+
+function awaitContent(archive, cb) {
+  archive.on('ready', () => {
+    let timer = setInterval(() => {
+      if (archive.content) {
+        clearInterval(timer)
+        cb()
+      }
+    }, 125)
+  })
+}
+
+function doSeed() {
+  let pubkey = job.uri.replace(/^dat:\/*/,'')
+  let pathseed = path.join(argv.state, pubkey)
+  archive = hyperdrive(pathseed, pubkey, {sparse : true})
+  job.discovery = Discovery(archive)
+  let download = undefined
+
+  publish('!stdout> awaiting peers...')
+  awaitContent(archive, () => {
+    publish('!stdout> awaiting length...')
+    archive.content.update(1, ready)
+  })
+
+  function ready() {
+    if (!job) return
+    if (download) {
+      archive.content.undownload(download)
+    }
+
+    let length = archive.content.length
+    let chunkSize = Math.ceil(length / peerCount())
+    let chunkStart = peerOrder() * chunkSize
+    let chunkEnd = chunkStart + chunkSize
+
+    archive.content.clear(0, chunkStart)
+    archive.content.clear(chunkEnd, length)
+
+    download = { start: chunkStart, end: chunkEnd }
+    publish(`!stdout> begining download ${chunkStart} to ${chunkEnd} of ${length}...`)
+    archive.content.download(download, () => {
+      publish('!stdout> download complete, seeding...')
+    })
+
+    archive.content.update(ready)
+  }
+}
+
 function work() {
   let bdb = memdb()
   let kv = umkv(bdb)
   let botstate = BotState(cabalkey, bdb, kv)
+  let next = () => setTimeout(work, 2500)
 
   fetchMail('bots', ((err, mail) => {
     if (err) return error(err)
@@ -78,62 +169,52 @@ function work() {
             let nonce = crypto.randomBytes(2).toString('hex')
             let ack = `!ok ${nonce} ${ids.join(',')} dat://${datkey}`
             publish(ack)
-            setTimeout(work, 2500)
+            next()
           })
           break;
 
         case states.DO_JOB:
-          let job = botstate.job()
-          let pathjob = path.join(argv.state, 'job')
-          console.log('do job ->', job.uri)
-          proc.exec(`rm -rf ${pathjob}`, (err, stdout, stderr) => {
-            if (err) return error(err)
-            publish('!stdout> cloning job...')
-            proc.exec(`dat clone ${job.uri} ${pathjob}`, (err, stdout, stderr) => {
-              if (err) return error(err)
-              publish('!stdout> npm install...')
-              proc.exec('npm install', { cwd : pathjob }, (err) => {
-                if (err) return error(err)
-                let config = Object.assign({ }, job, { cabalkey, share : pathshare })
-                let configFile = path.join(pathjob, 'config.json')
-                fs.writeFileSync(configFile, JSON.stringify(config))
-
-                let child = proc.spawn('npm', ['start'], { cwd : pathjob })
-                child.stdout.on('data', (data) => publish('!stdout> ' + data.toString().trim()))
-                child.stderr.on('data', (data) => publish('!stderr> ' + data.toString().trim()))
-                child.once('close', (code) => {
-                  if (code === 0) {
-                    publish(`!done ${job.uri}`)
-                  } else {
-                    publish(`!error ${job.uri}`)
-                  }
-                  setTimeout(work, 2500)
-                })
-              })
-            })
-          })
+          if (job) return next()
+          job = botstate.job()
+          if (!job.seed) {
+            doJob()
+          } else {
+            doSeed()
+          }
+          next()
           break;
 
+        case states.CANCEL:
+          let cancelled = botstate.job().uri
+          if (job && job.child && job.uri === cancelled) {
+            job.child.kill()
+          } else if (job && job.seed && job.uri === cancelled) {
+            archive.close()
+            job.discovery.close()
+            publish(`!done ${job.uri}`)
+            job = undefined
+          }
+          next()
+          break
+
         default:
-          setTimeout(work, 2500)
+          next()
       }
     })
   }))
 }
 
 cabal.swarm(error)
-datshare.once('error', error)
-datshare.once('ready', () => {
-  datkey = datshare.key.toString('hex')
+archive.once('error', error)
+archive.once('ready', () => {
+  datkey = archive.key.toString('hex')
   console.log('dat pubkey ->', datkey)
-  datshare.close()
+  archive.close()
   cabal.getLocalKey((err, key) => {
-    if (err) { error(err) }
-    else {
-      cabalkey = key
-      console.log('cabal pubkey ->', cabalkey)
-      work()
-    }
+    if (err) return error(err)
+    cabalkey = key
+    console.log('cabal pubkey ->', cabalkey)
+    work()
   })
 })
 

@@ -3,6 +3,7 @@ const states = {
   ACK_ROLL : 1,
   WAIT_JOB : 2,
   DO_JOB : 3,
+  CANCEL : 4
 }
 
 module.exports = {
@@ -61,7 +62,7 @@ function BotState(id, db, kv) {
     if (/^!rollcall\b/.test(text)) {
       let parts = text.split(' ')
       if (parts.length != 2) return cb(null, state)
-      if (state !== states.DO_JOB) {
+      if (state !== states.DO_JOB && state !== states.CANCEL) {
         state = states.ACK_ROLL
         job = undefined
       }
@@ -95,9 +96,9 @@ function BotState(id, db, kv) {
         if (err) cb(err)
         else cb(null, state)
       })
-    } else if (/^!job\b/.test(text)) {
+    } else if (/^!job\b/.test(text) || /^!seed\b/.test(text)) {
       let parts = text.split(' ')
-      if (parts.length != 3) cb(null, state)
+      if (parts.length != 3) return cb(null, state)
       let prev = parts[1].split(',')
 
       if (state === states.WAIT_JOB) {
@@ -109,7 +110,8 @@ function BotState(id, db, kv) {
             state = states.WAIT_ROLL
           } else {
             state = states.DO_JOB
-            job = { uri : parts[2], peers : { } }
+            let seed = /^!seed\b/.test(text)
+            job = { uri : parts[2], seed, peers : { } }
             bots.forEach((key) => job.peers[key] = peers[key])
           }
           cb(null, state)
@@ -120,8 +122,14 @@ function BotState(id, db, kv) {
       } else {
         cb(null, state)
       }
+    } else if (/^!cancel\b/.test(text) && state === states.DO_JOB) {
+      let parts = text.split(' ')
+      if (parts.length != 2) return cb(null, state)
+      job = { uri : parts[1] }
+      state = states.CANCEL
+      cb(null, state)
     } else if (/^!done\b/.test(text) || /^!error\b/.test(text)) {
-      if (state === states.DO_JOB && id === msg.key) {
+      if ((state === states.DO_JOB || state === states.CANCEL) && id === msg.key) {
         state = states.WAIT_ROLL
         job = undefined
       }

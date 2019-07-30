@@ -207,6 +207,47 @@ test('error job', function (t) {
   })
 })
 
+test('cancelling job', function (t) {
+  t.plan(2)
+
+  let db = memdb()
+  let kv = umkv(db)
+  let botstate = BotState('B', db, kv)
+
+  let mail = [
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA11' }}},
+    { key : 'B', value : { content : { channel : 'bots', text : '!ok BB00 AA11 dat://B' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!job BB00 dat://abc777' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!cancel dat://abc777' }}},
+  ]
+
+  readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
+    t.equal(botstate.state(), states.CANCEL)
+  })
+})
+
+test('cancelled job', function (t) {
+  t.plan(2)
+
+  let db = memdb()
+  let kv = umkv(db)
+  let botstate = BotState('B', db, kv)
+
+  let mail = [
+    { key : 'A', value : { content : { channel : 'bots', text : '!rollcall AA11' }}},
+    { key : 'B', value : { content : { channel : 'bots', text : '!ok BB00 AA11 dat://B' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!job BB00 dat://abc777' }}},
+    { key : 'A', value : { content : { channel : 'bots', text : '!cancel dat://abc777' }}},
+    { key : 'B', value : { content : { channel : 'bots', text : '!error dat://abc777' }}},
+  ]
+
+  readAll(botstate, mail, 0, (err, state) => {
+    t.error(err)
+    t.equal(botstate.state(), states.WAIT_ROLL)
+  })
+})
+
 test('not my job', function (t) {
   t.plan(3)
 
